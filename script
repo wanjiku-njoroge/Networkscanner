@@ -1,0 +1,69 @@
+from scapy.all import ARP, Ether, srp, wrpcap 
+
+def scan_network(target_ip):
+    """
+    Scans the network for available devices.
+    :param target_ip: The IP range to scan.
+    :return: List of discovered devices with IP and MAC addresses.
+    """
+    # ARP request packet for scanning
+    arp = ARP(pdst=target_ip)
+    ether = Ether(dst="ff:ff:ff:ff:ff:ff")  # Broadcast MAC
+    packet = ether / arp
+
+    # Send the packet and capture the response
+    result = srp(packet, timeout=5, verbose=0)[0]
+    clients = []
+
+    # Parse the response and extract IP and MAC addresses
+    for sent, received in result:
+        clients.append({"ip": received.psrc, "mac": received.hwsrc})
+
+    return clients
+
+def save_to_pcap(clients, filename):
+    """m
+    Saves the scanned network clients to a PCAP file.
+    :param clients: List of clients with IP and MAC addresses.
+    :param filename: The filename for the saved PCAP file.
+    """
+    packets = []
+    for client in clients:
+        arp = ARP(pdst=client["ip"], hwdst=client["mac"])
+        ether = Ether(dst=client["mac"])
+        packet = ether / arp
+        packets.append(packet)
+
+    # Save all packets to the specified file
+    wrpcap(filename, packets)
+    print(f"Captured packets saved to {filename}")
+
+def print_scan_results(clients):
+    """
+    Prints the network scan results in a formatted table.
+    :param clients: List of clients with IP and MAC addresses.
+    """
+    print("Available devices on the network:")
+    print(f"{'IP':<16}{'MAC':<18}")
+    for client in clients:
+        print(f"{client['ip']:<16} {client['mac']}")
+
+if __name__ == "__main__":
+    # Prompt for the target IP range or specific IP
+    target_ip = input("Enter the IP address or IP range to scan (e.g., 192.168.1.0/24): ")
+
+    # Perform network scan
+    clients = scan_network(target_ip)
+
+    # Print scan results
+    print_scan_results(clients)
+
+    # Check if clients were found
+    if clients:
+        # Prompt for the filename to save the captured packets
+        filename = input("Enter the filename to save the captured packets (e.g., network_scan.pcap): ")
+
+        # Save captured packets to the specified filename
+        save_to_pcap(clients, filename)
+    else:
+        print("No devices found on the network.")
